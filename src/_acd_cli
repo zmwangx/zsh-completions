@@ -88,7 +88,7 @@ __acd_nodes () {
     # Get children of the current directory (directories only if dironly is
     # set) and save to the array nodes.
     #
-    # For convenience, here is the output of `acd_cli ls` looks like:
+    # For convenience, here is how the output of `acd_cli ls` looks like:
     #
     # [qvIuaiiiRgCHwWnZNm70zw] [A] 2009-avatar-itunes-extras.ite/
     # [ZfVy_iIURn2cln2Frwf0PA] [A] 2009-avatar.m4v
