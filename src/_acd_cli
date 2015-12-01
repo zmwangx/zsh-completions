@@ -1,0 +1,304 @@
+#compdef acd_cli acdcli
+
+# ACD remote node completors.
+# Nodes in Trash are not included.
+
+# Completes only to directories if the first argument is --acd-dironly.
+#
+# As it currently stands, completion is in theory hit-and-miss, bu as long as
+# you don't have stupid filenames like ones with quotes in them, and don't use
+# fancy tricks in command line arguments, it should succeed the great majority
+# of time. Speed is still a problem though.
+__acd_nodes () {
+    setopt localoptions noshwordsplit noksharrays
+    local dironly current_word nodes
+
+    [[ $1 == --acd-dironly ]] && { dironly=true; shift; }
+
+    current_word=$words[CURRENT]
+
+    # Since $current_word is the current word in the ZLE buffer, verbatim, it
+    # could contain anything... And even eval won't help (of course we
+    # shouldn't anyway), because you can't reliably eval something
+    # incomplete. A full treatment might require something similar to what's
+    # done in _files (if you know enough zsh...). But at the moment let's just
+    # strip all quoting. Absolutely unreliable, but hopefully cater to more
+    # real world scenarios than doing nothing.
+    current_word=${current_word//[\\\"\']/}
+
+    # If nothing have been typed, assume root.
+    [[ -n $current_word ]] || current_word='/'
+    # Path must be absolute, or error out.
+    [[ $current_word == /* ]] || return 1
+    # Get dirname, which will be our basis of completion.
+    current_directory=${current_word%/*}/
+
+    # Get children of the current directory (directories only if dironly is
+    # set) and save to the array nodes.
+    #
+    # For convenience, here is the output of `acd_cli ls` looks like:
+    #
+    # [qvIuaiiiRgCHwWnZNm70zw] [A] 2009-avatar-itunes-extras.ite/
+    # [ZfVy_iIURn2cln2Frwf0PA] [A] 2009-avatar.m4v
+    #
+    # Note that directories end in a /, which we'll utilize to filter out
+    # regular files.
+    if [[ -n $dironly ]]; then
+        nodes=( "${(@f)$(command acd_cli ls $current_directory 2>/dev/null | sed -e '/[^/]$/d' -e 's/^[^ ]* [^ ]* //')}" )
+    else
+        nodes=( "${(@f)$(command acd_cli ls $current_directory 2>/dev/null | sed -e 's/^[^ ]* [^ ]* //')}" )
+    fi
+
+    # Prepend current directory to each filename to convert to absolute paths
+    # suitable for command line insertion.
+    nodes=( $current_directory${^nodes} )
+
+    compadd $@ -S '' -- $nodes
+}
+
+__acd_dirs () {
+    __acd_nodes --acd-dironly "$@"
+}
+
+local context state state_descr line global_options
+typeset -A opt_args
+
+global_options=(
+    '(-h --help * : -)'{-h,--help}'[show help message and exit]'
+    '(-v -vv --verbose)'{-v,-vv,--verbose}'[print some info messages to stderr; use "-vv" to also get sqlalchemy info]'
+    '(-d -dd --debug)'{-d,-dd,--debug}'[print info and debug to stderr; use "-dd" to also get sqlalchemy debug messages]'
+    '(-nl --no-log)'{-nl,--no-log}'[do not save a log of debug messages]'
+    '(-c --color)'{-c+,--color=}'[select color mode]:color mode:((always\:"turns coloring on" never\:"turns coloring off [default]" auto\:"colors listings when stdout is a tty"))'
+    '(-i --check)'{-i+,--check=}'[select database integrity check type]:database integrity check type:(quick full none)'
+    '(-u --utf)'{-u,--utf}'[force utf output]'
+)
+
+_arguments -S -s "$global_options[@]" '*:: :->actions' && return 0
+
+# The actions array include all documented actions.
+# Undocumented actions such as delete-everything, init, i, dumpsql, and test are not completed.
+local actions
+actions=(
+    {version,v}':print version and exit'
+    {sync,s}':[+] refresh node list cache; fetches complete node listif cache is empty or incremental changes if cache is non-empty'
+    {clear-cache,cc}':delete node cache file [offline operation]'
+    {tree,t}':[+] print directory tree [offline operation]'
+    {children,ls,dir}':[+] list folder'\''s children [offline operation]'
+    {find,f}':find nodes by name [offline operation] [case insensitive]'
+    {find-md5,fh}':find files by MD5 hash [offline operation]'
+    {find-regex,fr}':find nodes by regular expression [offline operation] [case insensitive]'
+    {upload,ul}':[+] upload file and/or directory to a remote destination'
+    {overwrite,ov}':overwrite file A [remote] with content of file B [local]'
+    {stream,st}':[+] upload the standard input stream to a file'
+    {download,dl}':download a remote folder or file; will skip existing local files'
+    cat':output a file to the standard output stream'
+    {create,c,mkdir}':create folder using an absolute path'
+    {list-trash,lt}':[+] list trashed nodes [offline operation]'
+    {trash,rm}':move node to trash'
+    {restore,re}':restore node from trash'
+    {move,mv}':move node A into folder B'
+    {rename,rn}':rename a node'
+    {resolve,rs}':resolve a path to a node ID [offline operation]'
+    {add-child,ac}':add a node to a parent folder'
+    {remove-child,rc}':remove a node from a parent folder'
+    {usage,u}':show drive usage data'
+    {quota,q}':show drive quota [raw JSON]'
+    {metadata,m}':print a node'\''s metadata [raw JSON]'
+    mount':[+] mount the cloud drive at a local directory'
+    umount':[+] unmount cloud drive(s)'
+)
+
+if (( CURRENT == 1 )); then
+    _describe -t commands 'action' actions
+    return
+fi
+
+local args
+args=( '(-h --help * : -)'{-h,--help}'[show help message and exit]' ) # -h, --help are always present
+case "$words[1]" in
+    version|v|clear-cache|cc|usage|u)
+        _arguments -S -s "$args[@]"
+        ;;
+    sync|s)
+        args+=(
+            '(-f --full)'{-f,--full}'[perform a full sync even if the node list is not empty]'
+        )
+        _arguments -S -s "$args[@]"
+        ;;
+    tree|t)
+        args+=(
+            '(-t --include-trash)'{-t,--include-trash}
+            '::root folder for the tree:__acd_dirs'
+        )
+        _arguments -S -s "$args[@]"
+        ;;
+    children|ls|dir)
+        args+=(
+            '(-l --long)'{-l,--long}'[long listing format]'
+            '(-b --size-bytes)'{-b,--size-bytes}'[file sizes in bytes]'
+            '(-t --include-trash)'{-t,--include-trash}
+            '(-r --recursive)'{-r,--recursive}
+            '::folder to display contents of:__acd_dirs'
+        )
+        _arguments -S -s "$args[@]"
+        ;;
+    find|f)
+        args+=':name'
+        _arguments -S -s "$args[@]"
+        ;;
+    find-md5|fh)
+        args+=':md5:'
+        _arguments -S -s "$args[@]"
+        ;;
+    find-regex|fr)
+        args+=':regex:'
+        _arguments -S -s "$args[@]"
+        ;;
+    upload|ul)
+        # For this action, we disable option stacking and -fooarg due to ambiguity.
+        # Also note that -xe, -xr, -xp and equivalents can be repeated on the command line.
+        args+=(
+            '(-x --max-connections)'{-x,--max-connections=}'[set the maximum concurrent connections \[default: 1, maximum: 8\]]:# concurrent connections:(1 2 3 4 5 6 7 8)'
+            '(-r --max-retries)'{-r,--max-retries=}'[set the maximum number of retries \[default: 0, maximum: 4\]]:# retries:(0 1 2 3 4)'
+            '*'{-xe,--exclude-ending=}'[exclude files whose endings match the given string, e.g., "bak" \[case insensitive\]]:ending:'
+            '*'{-xr,--exclude-regex=}'[exclude files whose names match the given regular expression, e.g. "^thumbs\.db$" \[case insensitive\]]:regex:'
+            '*'{-xp,--exclude-path=}'[exclude file or directory that match the given string]:path:_files'
+            '(-o --overwrite)'{-o,--overwrite}'[overwrite if local modification time is higher or local ctime is higher than remote modification time and local/remote file sizes do not match.]'
+            '(-f --force)'{-f,--force}'[force overwrite]'
+            '(-d --deduplicate)'{-d,--deduplicate}'[exclude duplicate files from upload]'
+            '(-rsf --remove-source-files)'{-rsf,--remove-source-files}'[remove local files on successful upload]'
+            # Here we need to handle arguments: path [path ...] parent
+            # Unfortunately this is not possible because we don't know which
+            # argument is parent beforehand.  Since parent is usually harder to
+            # copy, I've priotized its completion and made the compromise that
+            # we only officially accept two normal arguments on the command
+            # line; to complete more paths, the trick is to move the cursor
+            # back to before the first path. This is of course not ideal, but
+            # can you suggest something better?
+            ':local path:_files'
+            ':remote parent folder:__acd_dirs'
+        )
+        _arguments -S "$args[@]"
+        ;;
+    overwrite|ov)
+        args+=(
+            '(-r --max-retries)'{-r,--max-retries=}'[set the maximum number of retries \[default: 0, maximum: 4\]]:# retries:(0 1 2 3 4)'
+            ':remote node:__acd_nodes'
+            ':local file:_files'
+        )
+        _arguments -S -s "$args[@]"
+        ;;
+    stream|st)
+        args+=(
+            '(-o --overwrite)'{-o,--overwrite}
+            '(-d --deduplicate)'{-d,--deduplicate}'[prevent duplicates from getting stored after upload]'
+            ': :_guard "^-*" "remote file name"'
+            ':remote parent folder:__acd_dirs'
+        )
+        _arguments -S -s "$args[@]"
+        ;;
+    download|dl)
+        # Similar to upload/ul, we disable option stacking and -fooarg here.
+        args+=(
+            '(-x --max-connections)'{-x,--max-connections=}'[set the maximum concurrent connections \[default: 1, maximum: 8\]]:# concurrent connections:(1 2 3 4 5 6 7 8)'
+            '(-r --max-retries)'{-r,--max-retries=}'[set the maximum number of retries \[default: 0, maximum: 4\]]:# retries:(0 1 2 3 4)'
+            '*'{-xe,--exclude-ending=}'[exclude files whose endings match the given string, e.g., "bak" \[case insensitive\]]:ending:'
+            '*'{-xr,--exclude-regex=}'[exclude files whose names match the given regular expression, e.g. "^thumbs\.db$" \[case insensitive\]]:regex:'
+            '(-t --time)'{-t,--time=}'[preserve modification times]'
+            ':remote node:__acd_nodes'
+            '::local download directory:_files -/'
+        )
+        _arguments -S "$args[@]"
+        ;;
+    cat)
+        args+=':node:__acd_nodes'
+        _arguments -S -s "$args[@]"
+        ;;
+    create|c|mkdir)
+        args+=(
+            '(-p --parents)'{-p,--parents}'[create parent folders as needed]'
+            ':remote folder path:__acd_dirs'
+        )
+        _arguments -S -s "$args[@]"
+        ;;
+    list-trash|lt)
+        args+=(
+            '(-r --recursive)'{-r,--recursive}
+        )
+        _arguments -S -s "$args[@]"
+        ;;
+    trash|rm)
+        args+=':node:__acd_dirs'
+        _arguments -S -s "$args[@]"
+        ;;
+    restore|re)
+        # Recursive search of node ID is potentially too expensive, so do not
+        # complete node ID.
+        args+=':node ID:'
+        _arguments -S -s "$args[@]"
+        ;;
+    move|mv)
+        args+=(
+            ':child:__acd_nodes'
+            ':new parent:__acd_dirs'
+        )
+        _arguments -S -s "$args[@]"
+        ;;
+    rename|rn)
+        args+=(
+            ':node:__acd_nodes'
+            ':name:'
+        )
+        _arguments -S -s "$args[@]"
+        ;;
+    resolve|rs)
+        args+=':path:__acd_nodes'
+        _arguments -S -s "$args[@]"
+        ;;
+    add-child|ac|remove-child|rc)
+        args+=(
+            ':parent node:__acd_dirs'
+            ':child node:__acd_nodes'
+        )
+        _arguments -S -s "$args[@]"
+        ;;
+    metadata|m)
+        args+=':node:__acd_nodes'
+        _arguments -S -s "$args[@]"
+        ;;
+    mount)
+        # Disable option stacking.
+        args+=(
+            '(-ro --ro)'{-ro,--ro}'[mount read-only]'
+            '(-fg --foreground)'{-fg,--foreground}'[do not detach]'
+            '(-st --single-threaded)'{-st,--single-threaded}
+            '(-ne --nonempty)'{-ne,--nonempty}'[allow mounting over a non-empty directory]'
+            '(-ar --allow-root)'{-ar,--allow-root}'[allow access to root user]'
+            '(-ao --allow-other)'{-ao,--allow-other}'[allow access to other users]'
+            '--modules=[add iconv or subdir modules]:module:(iconv subdir)'
+            '(-n --nlinks)'{-n,--nlinks}'[calculate nlinks]'
+            '(-i --interval)'{-i+,--interval=}'[sync every x seconds \[default: 60, off: 0\]]:seconds'
+            ':mount path:_files -/'
+        )
+        _arguments -S "$args[@]"
+        ;;
+    umount)
+        args+=(
+            '(-l -z --lazy)'{-l,-z,--lazy}
+            '::local path to unmount:_files -/'
+        )
+        _arguments -S -s "$args[@]"
+        ;;
+    *)
+        # Unknown action, just complete to files.
+        _arguments -S '*:: :_files'
+        ;;
+esac
+
+# Local Variables:
+# mode: Shell-Script
+# sh-indentation: 4
+# indent-tabs-mode: nil
+# sh-basic-offset: 4
+# End:
+# vim: ft=zsh sw=4 ts=4 et
