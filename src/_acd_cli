@@ -27,7 +27,7 @@
 #
 # ------------------------------------------------------------------------------
 
-# setopt localoptions noshwordsplit noksharrays
+setopt localoptions noshwordsplit noksharrays
 
 # First, declare extern_cmd_timeout, which is retrieved from
 # :completion:acd_cli upon request; and declare timeout_cmd_args, which should
@@ -52,7 +52,10 @@ __acd_retrieve_timeout () {
 }
 
 # ACD remote node completors.
-# Nodes in Trash are not included.
+#
+# Nodes in Trash are not included in __acd_nodes or __acd_dirs (which complete
+# to unique, absolute paths), but there's the trash exclusive completor
+# __acd_trashes that completes to node IDs of trashed nodes.
 
 # Completes only to directories if the first argument is --acd-dironly.
 #
@@ -110,6 +113,21 @@ __acd_nodes () {
 
 __acd_dirs () {
     __acd_nodes --acd-dironly "$@"
+}
+
+# Completes to node IDs of trashed nodes. Does not recurse.
+__acd_trashes () {
+    local nodes # array with element of the form node_id:node_path suitable for _describe
+    __acd_retrieve_timeout
+    nodes=()
+    command $timeout_cmd_args[@] acd_cli list-trash 2>/dev/null | \
+        while IFS= read -r line; do
+            # line looks like: [17Be8nxHT9-dT0CxfjnQJQ] [T] Documents/
+            node_id=${${line[(ws: :)1]}//[\[\]]/}
+            node_path=${line[(ws: :)3,-1]}
+            nodes+="$node_id:$node_path"
+        done
+    _describe -V "trashed node" nodes # -V to unsort node IDs and present as returned by list-trash; see compadd
 }
 
 local context state state_descr line global_options
@@ -284,9 +302,7 @@ case "$words[1]" in
         _arguments -S -s "$args[@]"
         ;;
     restore|re)
-        # Recursive search of node ID is potentially too expensive, so do not
-        # complete node ID.
-        args+=':node ID:'
+        args+=':node ID:__acd_trashes'
         _arguments -S -s "$args[@]"
         ;;
     move|mv)
