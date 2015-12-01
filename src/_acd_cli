@@ -1,4 +1,55 @@
-#compdef acd_cli acdcli
+#compdef acd_cli acdcli acd_cli.py
+# ------------------------------------------------------------------------------
+# Description
+# -----------
+#
+#  Completion defintion for acd_cli (https://github.com/yadayada/acd_cli).
+#
+#  This completion function calls acd_cli to complete remote nodes when
+#  appropriate, but depending on the situation it may take a long time to hear
+#  back from acd_cli. Therefore, if the timeout command is detected, then a
+#  timeout is applied to each external call, which kills the call if it does
+#  not return control in time. The default timeout is 10 seconds (so that users
+#  not aware of the timeout wouldn't be caught in surprise too often, and
+#  wouldn't need to sit and wait for too long either), and it can be customized via
+#
+#      zstyle ':completion:acd_cli' extern_cmd_timeout <number-of-seconds>
+#
+#  <number-of-seconds> is must be a nonnegative integer or floating point
+#  number, or it is ignored. Setting the timeout to 0 disables timeout
+#  entirely.
+#
+# ------------------------------------------------------------------------------
+# Authors
+# -------
+#
+#  * Zhiming Wang <zmwangx@gmail.com>
+#
+# ------------------------------------------------------------------------------
+
+# setopt localoptions noshwordsplit noksharrays
+
+# First, declare extern_cmd_timeout, which is retrieved from
+# :completion:acd_cli upon request; and declare timeout_cmd_args, which should
+# be either (timeout $extern_cmd_timeout) or (). The latter case happens when
+# the timeout command isn't available.
+local extern_cmd_timeout timeout_cmd_args
+__acd_retrieve_timeout () {
+    [[ -n $extern_cmd_timeout ]] && return # already initialized
+    zmodload zsh/zutil
+    zstyle -s ':completion:acd_cli' extern_cmd_timeout extern_cmd_timeout
+    # Discard if not a valid nonnegative floating point number.
+    [[ $extern_cmd_timeout == (<->|.<->|<->.<->) ]] || extern_cmd_timeout=
+    # Use default if not set, which is 10 seconds.
+    extern_cmd_timeout=${extern_cmd_timeout:-10}
+    # If 0 or if timeout command is not available, do not timeout; otherwise,
+    # set $timeout_cmd_args.
+    if (( extern_cmd_timeout == 0 || ! $+commands[timeout] )) ; then
+        timeout_cmd_args=()
+    else
+        timeout_cmd_args=(timeout $extern_cmd_timeout)
+    fi
+}
 
 # ACD remote node completors.
 # Nodes in Trash are not included.
@@ -10,7 +61,6 @@
 # fancy tricks in command line arguments, it should succeed the great majority
 # of time. Speed is still a problem though.
 __acd_nodes () {
-    setopt localoptions noshwordsplit noksharrays
     local dironly current_word nodes
 
     [[ $1 == --acd-dironly ]] && { dironly=true; shift; }
@@ -33,6 +83,8 @@ __acd_nodes () {
     # Get dirname, which will be our basis of completion.
     current_directory=${current_word%/*}/
 
+    __acd_retrieve_timeout
+
     # Get children of the current directory (directories only if dironly is
     # set) and save to the array nodes.
     #
@@ -44,9 +96,9 @@ __acd_nodes () {
     # Note that directories end in a /, which we'll utilize to filter out
     # regular files.
     if [[ -n $dironly ]]; then
-        nodes=( "${(@f)$(command acd_cli ls $current_directory 2>/dev/null | sed -e '/[^/]$/d' -e 's/^[^ ]* [^ ]* //')}" )
+        nodes=( "${(@f)$(command $timeout_cmd_args[@] acd_cli ls $current_directory 2>/dev/null | sed -e '/[^/]$/d' -e 's/^[^ ]* [^ ]* //')}" )
     else
-        nodes=( "${(@f)$(command acd_cli ls $current_directory 2>/dev/null | sed -e 's/^[^ ]* [^ ]* //')}" )
+        nodes=( "${(@f)$(command $timeout_cmd_args[@] acd_cli ls $current_directory 2>/dev/null | sed -e 's/^[^ ]* [^ ]* //')}" )
     fi
 
     # Prepend current directory to each filename to convert to absolute paths
