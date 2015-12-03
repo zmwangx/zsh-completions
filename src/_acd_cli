@@ -59,7 +59,7 @@ __acd_retrieve_timeout () {
 
 # Completes only to directories if the first argument is --acd-dironly.
 #
-# As it currently stands, completion is in theory hit-and-miss, bu as long as
+# As it currently stands, completion is in theory hit-and-miss, but as long as
 # you don't have stupid filenames like ones with quotes in them, and don't use
 # fancy tricks in command line arguments, it should succeed the great majority
 # of time. Speed is still a problem though.
@@ -237,16 +237,12 @@ case "$words[1]" in
             '(-f --force)'{-f,--force}'[force overwrite]'
             '(-d --deduplicate)'{-d,--deduplicate}'[exclude duplicate files from upload]'
             '(-rsf --remove-source-files)'{-rsf,--remove-source-files}'[remove local files on successful upload]'
-            # Here we need to handle arguments: path [path ...] parent
-            # Unfortunately this is not possible because we don't know which
-            # argument is parent beforehand.  Since parent is usually harder to
-            # copy, I've priotized its completion and made the compromise that
-            # we only officially accept two normal arguments on the command
-            # line; to complete more paths, the trick is to move the cursor
-            # back to before the first path. This is of course not ideal, but
-            # can you suggest something better?
             ':local path:_files'
-            ':remote parent folder:__acd_dirs'
+            # Since we cannot decide whether each of the rest of the arguments
+            # is local or remote (the last argument is remote, but you never
+            # know which one is the last until accept-line), we offer
+            # suggestions for both.
+            '*: : _alternative "remotes:remote parent folder:__acd_dirs" "locals:local path:_files"'
         )
         _arguments -S "$args[@]"
         ;;
