@@ -143,7 +143,8 @@ global_options=(
     '(-u --utf)'{-u,--utf}'[force utf output]'
 )
 
-_arguments -S -s "$global_options[@]" '*:: :->actions' && return 0
+# No option stacking here due to ambiguity.
+_arguments -S "$global_options[@]" '*:: :->actions' && return 0
 
 # The actions array include all documented actions.
 # Undocumented actions such as delete-everything, init, i, dumpsql, and test are not completed.
