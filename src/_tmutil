@@ -1,0 +1,26 @@
+#compdef tmutil
+# ------------------------------------------------------------------------------
+# Description
+# -----------
+#
+#  Very primitive completion script for tmutil (OS X) that helps complete its
+#  verbs.
+#
+# ------------------------------------------------------------------------------
+# Authors
+# -------
+#
+#  * Zhiming Wang <zmwangx@gmail.com>
+#
+# ------------------------------------------------------------------------------
+
+local verbs
+verbs=(
+    setdestination destinationinfo removedestination addexclusion
+    removeexclusion isexcluded enable disable startbackup stopbackup compare
+    verifychecksums restore delete latestbackup listbackups machinedirectory
+    calculatedrift uniquesize inheritbackup associatedisk enablelocal
+    disablelocal snapshot
+)
+(( CURRENT == 2 )) && { _describe -V -t commands 'verb' verbs; return; }
+_arguments '*:: :_files'
