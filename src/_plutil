@@ -1,0 +1,46 @@
+#compdef plutil
+# ------------------------------------------------------------------------------
+# Description
+# -----------
+#
+#  Completion script for plutil on OS X.
+#
+#  Note that only options documented in the man page (https://goo.gl/YgYJaH)
+#  are completed. Options only found in the command line help text (-insert,
+#  -remove, -replace, -extract) are not currently supported.
+#
+# ------------------------------------------------------------------------------
+# Authors
+# -------
+#
+#  * Zhiming Wang <zmwangx@gmail.com>
+#
+# ------------------------------------------------------------------------------
+
+__complete_convert () {
+    # First handle -convert's argument 'fmt'
+    if (( CURRENT == 1 )); then
+        local formats
+        formats=(xml1 binary1 json)
+        _describe -V "format" formats
+        return
+    fi
+    local convert_opts
+    convert_opts=(
+        '-s[do not print anything on success]'
+        '-r[for JSON, add whitespace and indentation to make output more human-readable]'
+        '-o[alternate path for converted file]:converted file:_files'
+        '-e[alternate extension for converted file]:converted extension:'
+    )
+    _arguments -S $convert_opts '*:plist file:_files -g "*.plist"'
+}
+
+local opts
+opts=(
+    '(: - *)-help[show usage info and exit]'
+    '(-help -lint -convert)-p[print plist in human-readable fashion]'
+    '(-help -p -convert)-lint[check syntax (default)]'
+    '(-help -p -lint)-convert[convert to format and write back to filesystem]:*:: :__complete_convert'
+    '(-help)-s[do not print anything on success]'
+)
+_arguments -S $opts '*:plist file:_files -g "*.plist"'
