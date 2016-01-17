@@ -1,0 +1,36 @@
+#compdef mdutil
+# ------------------------------------------------------------------------------
+# Description
+# -----------
+#
+#  Completion definition for OS X mdutil(1).
+#
+# ------------------------------------------------------------------------------
+# Authors
+# -------
+#
+#  * Zhiming Wang <zmwangx@gmail.com>
+#
+# ------------------------------------------------------------------------------
+
+__mount_points () {
+    setopt localoptions nullglob
+    local volumes existing
+    # List of commonly used volumes
+    volumes=( / /Volumes/*(/) )
+    for existing in ${words[1, CURRENT-1]}; do
+        volumes=( ${volumes:#$existing} )
+    done
+    _describe -t paths 'volume' volumes
+    _path_files -/
+}
+
+_arguments -sS \
+           '-p[flush network device Splotlight cache to network device]' \
+           '-E[erase local Spotlight store for volume(s) (will be rebuilt as approriate)]' \
+           '-i[set indexing status for volume(s)]:status:(on off)' \
+           '-d[disable Spotlight searches for volume(s)]' \
+           '-s[display indexing status of volume(s)]' \
+           '(*)-a[select all volumes]' \
+           '-v[verbose]' \
+           '*::: :__mount_points'
