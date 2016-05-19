@@ -181,7 +181,19 @@ case "$words[1]" in
       '(--use-gcc)--use-gcc[attempt to compile using GCC]' \
       '(--use-llvm)--use-llvm[attempt to compile using the LLVM front-end to GCC]' \
       '1: :->forms' && return 0
-    
+
+      if [[ "$state" == forms ]]; then
+        _brew_all_formulae
+        _wanted formulae expl 'all formulae' compadd -a formulae
+      fi ;;
+  audit)
+    _arguments \
+      '(--strict)--strict[run RuboCop style checks]' \
+      '(--online)--online[run additional checks that require a network connection]' \
+      '(--display-cop-names)--display-cop-names[show RuboCop cop name for each violation]' \
+      '(--display-filename)--display-filename[prefix diagnostics with file name being audited]' \
+      '1: :->forms' &&  return 0
+
       if [[ "$state" == forms ]]; then
         _brew_all_formulae
         _wanted formulae expl 'all formulae' compadd -a formulae
@@ -212,4 +224,3 @@ esac
 # sh-basic-offset: 2
 # End:
 # vim: ft=zsh sw=2 ts=2 et
-
